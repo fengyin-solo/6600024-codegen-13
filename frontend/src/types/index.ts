@@ -53,6 +53,28 @@ export interface HistoryDataPoint {
   quality: 'Good' | 'Bad' | 'Uncertain'
 }
 
+// 事件类型
+export type EventType = 'connection' | 'subscription' | 'alarm' | 'alarm_ack'
+
+// 事件操作
+export type EventAction =
+  | 'connect'
+  | 'disconnect'
+  | 'subscribe'
+  | 'unsubscribe'
+  | 'alarm_triggered'
+  | 'alarm_acknowledged'
+
+// 事件时间线
+export interface EventTimelineItem {
+  id: string
+  type: EventType
+  action: EventAction
+  message: string
+  timestamp: number
+  details?: Record<string, any>
+}
+
 // 节点详情
 export interface NodeDetail {
   node: OPCUANode

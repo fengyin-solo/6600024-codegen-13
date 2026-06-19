@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { OPCUANode, DataValue, AlarmEvent, SubscriptionConfig } from '../types'
+import type { OPCUANode, DataValue, AlarmEvent, SubscriptionConfig, EventTimelineItem, EventType, EventAction } from '../types'
 
 export const useOpcuaStore = defineStore('opcua', () => {
   // 状态
@@ -11,6 +11,26 @@ export const useOpcuaStore = defineStore('opcua', () => {
   const realTimeData = ref<Map<string, DataValue>>(new Map())
   const isConnected = ref(false)
   const dataHistory = ref<Map<string, Array<{ timestamp: number; value: number }>>>(new Map())
+  const eventTimeline = ref<EventTimelineItem[]>([])
+
+  // 添加事件到时间线
+  function addEvent(type: EventType, action: EventAction, message: string, details?: Record<string, any>) {
+    const event: EventTimelineItem = {
+      id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      action,
+      message,
+      timestamp: Date.now(),
+      details
+    }
+    eventTimeline.value.unshift(event)
+    if (eventTimeline.value.length > 100) eventTimeline.value.pop()
+  }
+
+  // 清空事件时间线
+  function clearEventTimeline() {
+    eventTimeline.value = []
+  }
 
   // 初始化模拟节点树
   function initNodeTree() {
@@ -208,6 +228,29 @@ export const useOpcuaStore = defineStore('opcua', () => {
     }
     alarms.value.unshift(newAlarm)
     if (alarms.value.length > 50) alarms.value.pop()
+    addEvent('alarm', 'alarm_triggered', alarm.message, {
+      alarmId: newAlarm.id,
+      nodeId: alarm.nodeId,
+      nodeName: alarm.nodeName,
+      severity: alarm.severity,
+      value: alarm.value,
+      threshold: alarm.threshold
+    })
+  }
+
+  // 根据 ID 查找节点
+  function findNodeById(id: string): OPCUANode | null {
+    function search(nodes: OPCUANode[]): OPCUANode | null {
+      for (const node of nodes) {
+        if (node.id === id) return node
+        if (node.children) {
+          const found = search(node.children)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    return search(nodeTree.value)
   }
 
   // 获取所有变量节点
@@ -243,11 +286,15 @@ export const useOpcuaStore = defineStore('opcua', () => {
       enabled: true
     }
     subscriptions.value.set(nodeId, subscription)
+    const node = findNodeById(nodeId)
+    addEvent('subscription', 'subscribe', `已订阅节点: ${node?.name || nodeId}`, { nodeId, nodeName: node?.name })
   }
 
   // 移除订阅
   function removeSubscription(nodeId: string) {
+    const node = findNodeById(nodeId)
     subscriptions.value.delete(nodeId)
+    addEvent('subscription', 'unsubscribe', `已取消订阅节点: ${node?.name || nodeId}`, { nodeId, nodeName: node?.name })
   }
 
   // 确认报警
@@ -255,6 +302,12 @@ export const useOpcuaStore = defineStore('opcua', () => {
     const alarm = alarms.value.find(a => a.id === alarmId)
     if (alarm) {
       alarm.acknowledged = true
+      addEvent('alarm_ack', 'alarm_acknowledged', `已确认报警: ${alarm.nodeName}`, {
+        alarmId: alarm.id,
+        nodeId: alarm.nodeId,
+        nodeName: alarm.nodeName,
+        severity: alarm.severity
+      })
     }
   }
 
@@ -267,11 +320,13 @@ export const useOpcuaStore = defineStore('opcua', () => {
   function connect() {
     isConnected.value = true
     initNodeTree()
+    addEvent('connection', 'connect', '已连接 OPC-UA 服务器')
   }
 
   // 断开连接
   function disconnect() {
     isConnected.value = false
+    addEvent('connection', 'disconnect', '已断开 OPC-UA 服务器连接')
   }
 
   // 计算属性
@@ -287,6 +342,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
     realTimeData,
     isConnected,
     dataHistory,
+    eventTimeline,
     // 方法
     initNodeTree,
     simulateDataUpdate,
@@ -298,6 +354,9 @@ export const useOpcuaStore = defineStore('opcua', () => {
     connect,
     disconnect,
     getAllVariableNodes,
+    findNodeById,
+    addEvent,
+    clearEventTimeline,
     // 计算属性
     activeAlarmsCount,
     criticalAlarmsCount

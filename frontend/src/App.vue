@@ -40,64 +40,72 @@
         <DataDashboard />
       </main>
 
-      <!-- 右侧面板: 报警列表 -->
+      <!-- 右侧面板: 报警 + 事件时间线 -->
       <aside class="right-panel">
-        <div class="alarm-panel">
-          <div class="alarm-header">
-            <h3 class="text-lg font-bold text-yellow-400">报警事件</h3>
-            <el-button type="danger" size="small" text @click="store.clearAlarms()" v-if="store.alarms.length > 0">
-              清空
-            </el-button>
-          </div>
+        <el-tabs v-model="activeRightTab" class="right-tabs">
+          <el-tab-pane label="报警事件" name="alarms">
+            <div class="alarm-panel">
+              <div class="alarm-header">
+                <h3 class="text-lg font-bold text-yellow-400">报警事件</h3>
+                <el-button type="danger" size="small" text @click="store.clearAlarms()" v-if="store.alarms.length > 0">
+                  清空
+                </el-button>
+              </div>
 
-          <div class="alarm-stats">
-            <el-tag type="danger" size="small">严重: {{ criticalCount }}</el-tag>
-            <el-tag type="warning" size="small">活跃: {{ store.activeAlarmsCount }}</el-tag>
-            <el-tag type="info" size="small">总计: {{ store.alarms.length }}</el-tag>
-          </div>
+              <div class="alarm-stats">
+                <el-tag type="danger" size="small">严重: {{ criticalCount }}</el-tag>
+                <el-tag type="warning" size="small">活跃: {{ store.activeAlarmsCount }}</el-tag>
+                <el-tag type="info" size="small">总计: {{ store.alarms.length }}</el-tag>
+              </div>
 
-          <div class="alarm-list">
-            <div
-              v-for="alarm in store.alarms"
-              :key="alarm.id"
-              class="alarm-item"
-              :class="{
-                'alarm-critical': alarm.severity === 'Critical',
-                'alarm-high': alarm.severity === 'High',
-                'alarm-medium': alarm.severity === 'Medium',
-                'alarm-acknowledged': alarm.acknowledged
-              }"
-            >
-              <div class="alarm-item-header">
-                <el-tag
-                  :type="getSeverityType(alarm.severity)"
-                  size="small"
-                  effect="dark"
+              <div class="alarm-list">
+                <div
+                  v-for="alarm in store.alarms"
+                  :key="alarm.id"
+                  class="alarm-item"
+                  :class="{
+                    'alarm-critical': alarm.severity === 'Critical',
+                    'alarm-high': alarm.severity === 'High',
+                    'alarm-medium': alarm.severity === 'Medium',
+                    'alarm-acknowledged': alarm.acknowledged
+                  }"
                 >
-                  {{ getSeverityLabel(alarm.severity) }}
-                </el-tag>
-                <span class="alarm-time">{{ formatTime(alarm.timestamp) }}</span>
-              </div>
-              <div class="alarm-item-body">
-                <span class="alarm-node">{{ alarm.nodeName }}</span>
-                <p class="alarm-message">{{ alarm.message }}</p>
-              </div>
-              <el-button
-                v-if="!alarm.acknowledged"
-                type="primary"
-                size="small"
-                text
-                @click="store.acknowledgeAlarm(alarm.id)"
-              >
-                确认
-              </el-button>
-            </div>
+                  <div class="alarm-item-header">
+                    <el-tag
+                      :type="getSeverityType(alarm.severity)"
+                      size="small"
+                      effect="dark"
+                    >
+                      {{ getSeverityLabel(alarm.severity) }}
+                    </el-tag>
+                    <span class="alarm-time">{{ formatTime(alarm.timestamp) }}</span>
+                  </div>
+                  <div class="alarm-item-body">
+                    <span class="alarm-node">{{ alarm.nodeName }}</span>
+                    <p class="alarm-message">{{ alarm.message }}</p>
+                  </div>
+                  <el-button
+                    v-if="!alarm.acknowledged"
+                    type="primary"
+                    size="small"
+                    text
+                    @click="store.acknowledgeAlarm(alarm.id)"
+                  >
+                    确认
+                  </el-button>
+                </div>
 
-            <div v-if="store.alarms.length === 0" class="no-alarms">
-              <el-empty description="暂无报警" :image-size="60" />
+                <div v-if="store.alarms.length === 0" class="no-alarms">
+                  <el-empty description="暂无报警" :image-size="60" />
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </el-tab-pane>
+
+          <el-tab-pane label="事件时间线" name="timeline">
+            <EventTimeline />
+          </el-tab-pane>
+        </el-tabs>
       </aside>
     </div>
   </div>
@@ -110,10 +118,12 @@ import { ElMessage } from 'element-plus'
 import { useOpcuaStore } from './store/opcua'
 import NodeTree from './components/NodeTree.vue'
 import DataDashboard from './components/DataDashboard.vue'
+import EventTimeline from './components/EventTimeline.vue'
 import type { AlarmEvent } from './types'
 
 const store = useOpcuaStore()
 const updateTimer = ref<number | null>(null)
+const activeRightTab = ref('timeline')
 
 const criticalCount = computed(() =>
   store.alarms.filter(a => a.severity === 'Critical' && !a.acknowledged).length
@@ -243,11 +253,53 @@ onUnmounted(() => {
 }
 
 .right-panel {
-  width: 340px;
+  width: 380px;
   background: rgba(30, 41, 59, 0.6);
   border-left: 1px solid rgba(71, 85, 105, 0.5);
-  overflow-y: auto;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.right-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.right-tabs .el-tabs__header) {
+  margin: 0;
+  background: rgba(15, 23, 42, 0.8);
+  border-bottom: 1px solid rgba(71, 85, 105, 0.5);
+}
+
+:deep(.right-tabs .el-tabs__nav-wrap::after) {
+  display: none;
+}
+
+:deep(.right-tabs .el-tabs__item) {
+  color: #94a3b8;
+  height: 44px;
+  line-height: 44px;
+}
+
+:deep(.right-tabs .el-tabs__item.is-active) {
+  color: #06b6d4;
+}
+
+:deep(.right-tabs .el-tabs__active-bar) {
+  background-color: #06b6d4;
+}
+
+:deep(.right-tabs .el-tabs__content) {
+  flex: 1;
+  overflow: hidden;
+}
+
+:deep(.right-tabs .el-tab-pane) {
+  height: 100%;
+  overflow: hidden;
 }
 
 .alarm-panel {
